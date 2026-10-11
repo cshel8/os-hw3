@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homework 3: Deadlock and Memory Management: answers of Connor Sheldon</title>
+<style>body{font:15px/1.55 system-ui,sans-serif;max-width:860px;margin:24px auto;padding:0 16px;color:#151c2c;background:#fff}h1{font-size:1.5rem;margin:0 0 4px}h2{font-size:1.15rem;margin:28px 0 8px;border-bottom:2px solid #d9deea;padding-bottom:4px}.meta{color:#69738c;margin:0 0 16px}.a{margin:0 0 14px}.q{margin:0 0 4px;color:#3d4760;font-size:.92rem}pre{white-space:pre-wrap;word-wrap:break-word;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;background:#f5f7fb;border:1px solid #d9deea;border-radius:6px;padding:8px 10px;margin:0}.empty{color:#b45309;margin:0}table{border-collapse:collapse;font:13px ui-monospace,Menlo,Consolas,monospace}th,td{border:1px solid #d9deea;padding:4px 8px;text-align:left}th{background:#f5f7fb}</style>
+</head>
+<body>
+<h1>Homework 3: Deadlock and Memory Management</h1>
+<p class="meta">Answers of <b>Connor Sheldon</b> · saved 10/11/2026, 1:13:36 AM</p>
+<h2>Problem 1Deadlock: resources, graphs and prevention</h2>
+<div class="a"><p class="q">(a) A reusable resource is used by one process at a time and is still there afterwards; a consumable resource is created by one process and destroyed when another takes it. Classify each item.</p>
+<table><tr><th></th><th>Reusable or consumable?</th></tr>
+<tr><th>A tape drive</th><td>Reusable</td></tr>
+<tr><th>A message waiting in a mailbox</th><td>Consumable</td></tr>
+<tr><th>A block of main memory</th><td>Reusable</td></tr>
+<tr><th>An interrupt from the keyboard</th><td>Consumable</td></tr>
+<tr><th>A semaphore</th><td>Reusable</td></tr>
+<tr><th>A file opened for exclusive writing</th><td>Reusable</td></tr>
+<tr><th>The bytes waiting inside a pipe</th><td>Consumable</td></tr>
+<tr><th>A signal sent to a process</th><td>Consumable</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) For each situation, list every cycle in its resource allocation graph (write a cycle like P1 → R2 → P2 → R1 → P1), say whether any processes are deadlocked, and either name the deadlocked processes or give an order in which every process can finish.</p>
+<table><tr><th></th><th>Cycle(s) in the graph</th><th>Deadlocked? Which processes?</th><th>Why, or an order in which all can finish</th></tr>
+<tr><th>X</th><td>P1 → R2 → P2 → R1 → P1</td><td>No</td><td>P3 can finish and release R1, allowing P2 to finish and release R2, followed by P1. Order: P3 → P2 → P1.</td></tr>
+<tr><th>Y</th><td>P1 → R2 → P2 → R1 → P1; P3 → R3 → P4 → R2 → P2 → R1 → P3</td><td>Yes: P1, P2, P3, P4</td><td>All resource units are allocated, and every process is waiting for another blocked process. No process can finish or release its resources.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(c) Each rule below is a design decision an operating system could make. Say which of the four conditions it rules out, or write none if it rules out none of them, and give its main cost or limitation.</p>
+<table><tr><th></th><th>Condition ruled out (or none)</th><th>Main cost or limitation</th></tr>
+<tr><th>Every process must ask for all the resources it will ever need in one request, and the OS grants all of them or none</th><td>Hold and wait</td><td>Resources may sit unused, and processes must know their needs in advance.</td></tr>
+<tr><th>Resource types are numbered; a process holding a resource numbered k may afterwards ask only for resources numbered higher than k</th><td>Circular wait</td><td>Restricts the order in which programs can acquire resources.</td></tr>
+<tr><th>A process whose request is refused must give back everything it holds and later ask for all of it again</th><td>No preemption</td><td>Work may need to be repeated, and starvation is possible.</td></tr>
+<tr><th>Files that are only ever read are opened in a shared read mode, so any number of processes may read one at the same time</th><td>Mutual exclusion</td><td>Only works for resources that can safely be shared, such as read-only files.</td></tr>
+<tr><th>When a high-priority process asks for memory held by a low-priority process, the OS takes it by swapping the low-priority process out</th><td>No preemption</td><td>Swapping creates overhead and delays lower-priority processes.</td></tr>
+<tr><th>Before granting any request, the OS checks with the banker&#39;s algorithm that the resulting state is still safe</th><td>None</td><td>Requires maximum claims in advance and adds checking overhead.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(d) Two processes exchange messages. Receive blocks until a message from the named process arrives; Send never blocks.</p>
+<pre>When both processes start, they immediately call Receive and block while waiting for a message from the other process. Since neither process can reach its Send instruction, neither message is ever created. This is a deadlock because both processes are waiting for an event that only the other blocked process can cause. The resources involved are consumable resources, specifically messages.
+
+Increasing the mailbox capacity would not solve the problem because the issue is not a lack of storage space. Neither process sends a message, so there is nothing to store.
+
+To fix the deadlock, Process A can send its message before attempting to receive:
+
+Process A:
+```
+Send(to B, request);
+Receive(from B, reply);
+```
+
+Process B:
+```
+Receive(from A, request);
+Send(to A, reply);
+```
+
+With this change, Process A sends the request, Process B receives it and sends a reply, and Process A receives the reply. Both processes can now complete without deadlocking.</pre>
+</div>
+<h2>Problem 2The banker&#39;s algorithm</h2>
+<div class="a"><p class="q">(a) Compute each process&#39;s remaining need (C − A) and the available vector V.</p>
+<table><tr><th></th><th>A</th><th>B</th><th>C</th></tr>
+<tr><th>P1 need</th><td>0</td><td>3</td><td>4</td></tr>
+<tr><th>P2 need</th><td>0</td><td>4</td><td>1</td></tr>
+<tr><th>P3 need</th><td>1</td><td>2</td><td>1</td></tr>
+<tr><th>P4 need</th><td>0</td><td>1</td><td>1</td></tr>
+<tr><th>P5 need</th><td>3</td><td>1</td><td>1</td></tr>
+<tr><th>V (available)</th><td>3</td><td>2</td><td>1</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) Run the safety test with the rule above. For each step, give the process that finishes and the work vector after it releases what it holds. Is the state safe?</p>
+<table><tr><th></th><th>Process that finishes</th><th>Work vector afterwards</th></tr>
+<tr><th>1</th><td>P3</td><td>(4, 4, 2)</td></tr>
+<tr><th>2</th><td>P2</td><td>(6, 5, 2)</td></tr>
+<tr><th>3</th><td>P4</td><td>(7, 6, 3)</td></tr>
+<tr><th>4</th><td>P5</td><td>(8, 6, 6)</td></tr>
+<tr><th>5</th><td>P1</td><td>(10, 7, 9) </td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(c) Three requests arrive. Judge each one separately, starting from the state in the table (not from the state left by the request before it). Say whether the banker grants it, refuses it (the process waits), or treats it as an error, and show the check that decides it. For a request that passes the first two checks, run the safety test on the state it would create.</p>
+<table><tr><th></th><th>Grant, refuse or error?</th><th>The check that decides it</th></tr>
+<tr><th>P3 asks for (1, 0, 1)</th><td>Grant</td><td>Request ≤ Need and Request ≤ Available. After temporary allocation, Available = (2, 2, 0). Safe sequence: P3 → P2 → P4 → P5 → P1.</td></tr>
+<tr><th>P2 asks for (0, 0, 1)</th><td>Refuse (wait)</td><td>First two checks pass, but temporary allocation leaves Available = (3, 2, 0). No process can finish, so the state is unsafe.</td></tr>
+<tr><th>P4 asks for (1, 0, 0)</th><td>Error</td><td>Request exceeds P4&#39;s remaining need (0, 1, 1), because it requests 1 unit of A when its remaining need for A is 0.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(d) Suppose the OS had used process initiation denial instead: start a new process only if the total units of each type are at least the sum of the claims of all processes, the new one included. Would it have let all five of these processes run at once? Show the sums. What does this say about initiation denial compared with the banker&#39;s algorithm?</p>
+<pre>No, process initiation denial would not allow all five processes to run simultaneously.
+
+The combined maximum claims are:
+
+- Resource A: 2 + 2 + 2 + 1 + 4 = 11
+- Resource B: 4 + 5 + 4 + 2 + 1 = 16
+- Resource C: 7 + 1 + 2 + 2 + 4 = 16
+
+The total claim vector is (11, 16, 16), which exceeds the system&#39;s resource vector of (10, 7, 9).
+
+This shows that process initiation denial is more restrictive than the banker&#39;s algorithm. Initiation denial requires enough resources to satisfy all maximum claims simultaneously, while the banker&#39;s algorithm allows processes to share resources over time as long as the system remains in a safe state. In Problem 2(b), the banker&#39;s algorithm found the safe sequence P3 → P2 → P4 → P5 → P1, even though the combined maximum claims exceed the system&#39;s total resources.</pre>
+</div>
+<div class="a"><p class="q">(e) If a request in (c) led to an unsafe state, does that mean the processes would be deadlocked once it was granted? Explain the difference between unsafe and deadlocked, and describe a way the processes could all still finish from that unsafe state.</p>
+<pre>No, an unsafe state does not necessarily mean the processes are deadlocked. An unsafe state means the operating system cannot guarantee that every process will finish if each process requests its maximum remaining resources. A deadlocked state means processes are actually blocked and cannot proceed because they are waiting for resources that cannot become available.
+
+For example, granting P2&#39;s request in part (c) would leave the available vector at (3, 2, 0), which is unsafe. However, if P2 could finish without requesting additional resources, it would release its allocation (2, 1, 1), increasing the available vector to (5, 3, 1). The remaining processes could then finish in the order P4 → P3 → P5 → P1.
+
+Therefore, an unsafe state creates the possibility of deadlock, but deadlock is not guaranteed.</pre>
+</div>
+<h2>Problem 3Detection, recovery and an integrated strategy</h2>
+<div class="a"><p class="q">(a) Work out the available vector, then run the algorithm. Give every process marked, in order, with W after each mark, and name the deadlocked processes.</p>
+<pre>Available vector: (0, 0, 0, 0)
+
+Step 1 marks: P5, because it holds no resources.
+
+W starts as: (0, 0, 0, 0)
+
+Then: P4 can finish because its request is (0, 0, 0, 0). It releases (0, 0, 1, 0), updating W to (0, 0, 1, 0). No other unmarked process can finish, so the algorithm stops.
+
+Deadlocked: P1, P2, and P3.</pre>
+</div>
+<div class="a"><p class="q">(b) P5 is blocked waiting for R2. Is P5 part of the circular wait, or only blocked behind it? Why does the algorithm mark it in step 1, and what will happen to P5 once the deadlock is broken?</p>
+<pre>P5 is blocked because it is waiting for a resource, but it is not deadlocked because it holds no resources. Since P5 cannot prevent other processes from obtaining resources, the deadlock detection algorithm marks it immediately. P1, P2, and P3 are deadlocked because they hold resources while waiting for resources that cannot become available.</pre>
+</div>
+<div class="a"><p class="q">(c) The OS recovers by aborting deadlocked processes one at a time, least processor time used first, running the detection algorithm again after each abort and stopping as soon as no deadlock remains. An aborted process releases everything it holds and its request disappears. Which processes does it abort, in what order, and how much processor time is thrown away? Then find the fewest processes whose abort ends the deadlock. Which choice would you make, and why?</p>
+<pre>Abort order: P1 first (3 seconds), then P3 (5 seconds). After aborting P1, P2 and P3 remain deadlocked. Aborting P3 releases R4, allowing P2 to finish and resolve the deadlock.
+
+Total processor time lost: 3 + 5 = 8 seconds.
+
+Fewest processes to abort: P2 alone. Releasing P2&#39;s resources allows the other processes to finish, but this wastes 40 seconds of processor time.
+
+My choice: I would abort P1 and P3 because this loses only 8 seconds of processor time instead of 40 seconds, even though two processes must be aborted instead of one.</pre>
+</div>
+<div class="a"><p class="q">(d) An integrated deadlock strategy groups resources into four classes, puts the classes in a fixed order (ordering between classes), and inside each class uses the method that suits it. Number the classes in the order they are assigned, and give each one its method and the reason the method suits it.</p>
+<table><tr><th></th><th>Order (1 = assigned first)</th><th>Method</th><th>Why it suits this class</th></tr>
+<tr><th>Main memory (pages or segments)</th><td>3</td><td>Prevention: preemption through swapping</td><td>Memory can be reclaimed by swapping a process out.</td></tr>
+<tr><th>Internal resources (for example I/O channels)</th><td>4</td><td>Prevention: resource ordering</td><td>These resources are used briefly and frequently, so a fixed order is efficient.</td></tr>
+<tr><th>Swappable space (disk blocks used for swapping)</th><td>1</td><td>Prevention: allocate all at once</td><td>The required space is known in advance.</td></tr>
+<tr><th>Process resources (assignable devices and files)</th><td>2</td><td>Avoidance: banker&#39;s algorithm</td><td>Maximum resource needs can be declared in advance.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(e) Give one advantage and one disadvantage of running the detection algorithm at every request rather than periodically. Then explain how this algorithm differs from the banker&#39;s safety test: which matrix does each use, and why is detection called optimistic?</p>
+<pre>Advantage: Running detection after every request identifies deadlocks immediately, allowing faster recovery.
+
+Disadvantage: It increases CPU overhead because the detection algorithm runs after every resource request.
+
+Difference: Deadlock detection uses the request matrix (Q) and allocation matrix (A) to identify existing deadlocks. The banker&#39;s safety test uses the claim matrix (C) and allocation matrix (A) to calculate remaining needs (C − A) and determine whether a state is safe before granting a request.
+
+Why detection is optimistic: It assumes processes will usually complete successfully, allowing resource requests without checking future safety and detecting and recovering from deadlocks only if they occur.</pre>
+</div>
+<h2>Problem 4The dining philosophers</h2>
+<div class="a"><p class="q">(a) Write a schedule (a list of steps such as &quot;philosopher 2 picks up fork 2&quot;) that ends in deadlock. At the end, who holds which fork and who waits for which? Show how each of the four conditions appears.</p>
+<pre>Schedule: Philosophers 0, 1, 2, 3, and 4 each pick up their left forks (forks 0, 1, 2, 3, and 4). They then each attempt to pick up their right forks, but all are already held.
+
+Holds and waits:
+- P0 holds fork 0, waits for fork 1.
+- P1 holds fork 1, waits for fork 2.
+- P2 holds fork 2, waits for fork 3.
+- P3 holds fork 3, waits for fork 4.
+- P4 holds fork 4, waits for fork 0.
+
+Four deadlock conditions:
+- Mutual exclusion: Only one philosopher can hold each fork.
+- Hold and wait: Each philosopher holds one fork while waiting for another.
+- No preemption: Forks cannot be forcibly taken away.
+- Circular wait: P0 → P1 → P2 → P3 → P4 → P0.
+
+All five philosophers are deadlocked because none can obtain their second fork or finish eating.</pre>
+</div>
+<div class="a"><p class="q">(b) A fix adds semaphore room = 4: each philosopher calls semWait(room) before picking up any fork and semSignal(room) after putting both down. Explain why deadlock is now impossible. What happens if room starts at 5 instead? What is the largest starting value that still rules deadlock out?</p>
+<pre>Why room = 4 works: Only four philosophers can attempt to pick up forks simultaneously, leaving at least one fork free. This allows a philosopher to obtain both forks, eat, and release them, preventing deadlock.
+
+If room = 5: All five philosophers could pick up their left forks simultaneously and wait for their right forks, causing circular wait and deadlock.
+
+Largest safe starting value: 4.</pre>
+</div>
+<div class="a"><p class="q">(c) Another fix leaves the original code alone except for philosopher 4, who picks up fork 0 first and then fork 4. Explain, using the idea of numbering resources, why no circular wait can form. Which of the four conditions does this fix rule out?</p>
+<pre>By having philosopher 4 pick up fork 0 before fork 4, every philosopher now acquires forks in increasing numerical order. This prevents a circular chain of processes waiting for lower numbered resources, so no circular wait can form. The deadlock condition eliminated is circular wait.</pre>
+</div>
+<div class="a"><p class="q">(d) Now the forks are interchangeable and sit in one pile in the middle of the table. A hungry philosopher takes forks from the pile one at a time and keeps any fork already taken while waiting for a second. What is the smallest number of forks in the pile that guarantees no deadlock for the five philosophers? Give the general rule for n processes that each need k units of one resource, taken one unit at a time, and use it for 8 processes that each need 3 tape drives.</p>
+<pre>Minimum forks: 6. With five forks, each philosopher could hold one and wait for another, causing deadlock. With six forks, at least one philosopher can obtain two forks, finish eating, and release them.
+
+General formula: R = n(k − 1) + 1, where n is the number of processes and k is the number of resource units each process needs.
+
+Eight processes needing three tape drives: R = 8(3 − 1) + 1 = 17 tape drives.</pre>
+</div>
+<div class="a"><p class="q">(e) A different design lets a philosopher pick up forks only when both are free, taking the two together in one indivisible step. Explain why this design can never deadlock, and then describe a pattern of meals by philosophers 1 and 3 that could keep philosopher 2 hungry forever. What is the name for that problem, and how does it differ from deadlock?</p>
+<pre>Why deadlock is impossible: Requiring philosophers to acquire both forks simultaneously eliminates the hold-and-wait condition. A philosopher either gets both forks or waits without holding any.
+
+Starvation example: Philosophers 1 and 3 repeatedly acquire their forks, eat, and release them. Each time they release their forks, they acquire them again before philosopher 2 can obtain forks 2 and 3. Philosopher 2 could therefore wait forever.
+
+Name and difference: This is called starvation. Deadlock occurs when processes cannot make progress because they are waiting on one another, while starvation occurs when one process waits indefinitely even though other processes continue making progress.</pre>
+</div>
+<h2>Problem 5Concurrency tools in real systems</h2>
+<div class="a"><p class="q">(a) For each situation, name the mechanism from that list that fits best and say in one line why it fits better than the alternatives.</p>
+<table><tr><th></th><th>Best mechanism</th><th>Why it fits</th></tr>
+<tr><th>A shell sends the output of one command straight into another command it started, as in ls | wc -l</th><td>Unnamed price</td><td>Connects the output of one related process directly to the input of another, as in ls \| wc -l.</td></tr>
+<tr><th>Two programs started separately by different users need a one-way byte stream that they find through a name in the file system</th><td>Named pipe (FIFO)</td><td>Provides a filesystem name so unrelated processes can find and use the same byte stream.</td></tr>
+<tr><th>A logging service receives records from many processes and wants to read the urgent ones before the routine ones</th><td>Message queue</td><td>Supports separate messages with priorities, allowing urgent log records to be received first.</td></tr>
+<tr><th>Two processes on one machine pass large video frames to each other and want the fastest path, with no copying</th><td>Shared memory</td><td>Allows processes to access large video frames directly without repeatedly copying the data.</td></tr>
+<tr><th>A Linux kernel counter of packets received is increased by code running on every CPU</th><td>Atomic operations</td><td>Safely increments a shared counter across CPUs without the overhead of a larger lock.</td></tr>
+<tr><th>A Linux kernel list is changed both by an interrupt handler and by ordinary kernel code on a multiprocessor, a few instructions at a time</th><td>Spinlock</td><td>Protects a short critical section in kernel code, including interrupt-related access, without sleeping.</td></tr>
+<tr><th>A Linux kernel routing table is read thousands of times a second and changed a few times a day</th><td>Read-copy-update (RCU)</td><td>Allows extremely frequent reads with minimal overhead while supporting occasional updates.</td></tr>
+<tr><th>A Linux driver must wait, possibly for many milliseconds, until its device is free, and must give up if the user presses Ctrl-C</th><td>Kernel semaphore</td><td>Supports interruptible sleeping while waiting for a device, unlike a spinlock that busy-waits.</td></tr>
+<tr><th>A Windows program&#39;s main thread must wait until all four of its worker threads have ended</th><td>Windows dispatcher objects and wait functions</td><td>Allows the main thread to wait until all four worker-thread objects are signaled as terminated.</td></tr>
+<tr><th>A cache inside one Windows process is read by many threads and updated now and then</th><td>Windows SRW lock</td><td>Allows multiple threads to read the cache simultaneously while giving updates exclusive access.</td></tr>
+<tr><th>A Solaris thread must wait until a shared queue is no longer empty</th><td>Solaris condition variable</td><td>Allows a thread to sleep until another thread signals that the shared queue may contain data.</td></tr>
+<tr><th>An Android app calls a method of a service that runs in another app&#39;s process</th><td>Android Binder</td><td>Provides interprocess method calls between Android applications and services.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) While a process is blocked, another process sends it the standard signal SIGUSR1 three times in quick succession. When the process next runs, how many times does its handler for SIGUSR1 run, and why? What would be different if the sender had sent a Linux real-time signal three times with sigqueue, carrying the values 1, 2 and 3?</p>
+<pre>Standard SIGUSR1: The handler runs once because standard UNIX signals are not queued individually. Multiple pending instances of the same signal are combined into one.
+
+Linux real-time signal: The handler runs three times because real-time signals are queued separately. Each signal preserves its associated value, so the handler receives 1, 2, and 3 in order.</pre>
+</div>
+<div class="a"><p class="q">(c) A semaphore starts at 3. Four processes each make one call, in this order: A with −2, B with 0, C with −2, D with +1. For each call, say whether the caller continues or is suspended, give the value right after the call, and say who wakes up and what happens to them.</p>
+<table><tr><th></th><th>Continues or suspended?</th><th>Value right after the call itself (before anyone it wakes retries)</th><th>Who wakes, and what happens to them</th></tr>
+<tr><th>A: sem_op = −2</th><td>Continues</td><td>1(3 - 2 = 1)</td><td>Nobody wakes.</td></tr>
+<tr><th>B: sem_op = 0</th><td>Suspended</td><td>1 (unchanged)</td><td>Nobody wakes. B waits for the value to reach 0.</td></tr>
+<tr><th>C: sem_op = −2</th><td>Suspended</td><td>1 (unchanged)</td><td>Nobody wakes. C waits until at least 2 units are available.</td></tr>
+<tr><th>D: sem_op = +1</th><td>Continues</td><td>2(1 + 1 = 2)</td><td>C wakes and subtracts 3, making the value 0. B then wakes and completes its zero wait operation.</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(d) A Solaris thread waits on a condition variable with while (!condition) cv_wait(&amp;cv, &amp;m);. Why must this be a while loop and not an if? Separately: what does a Linux spinlock turn into on a kernel built for a single processor, and why would spinning there be pointless?</p>
+<pre>Solaris condition variable: A `while` loop is necessary because waking up does not guarantee the condition is still true. Another thread may have changed it before the waiting thread resumes, so the condition must be checked again. An `if` statement would not recheck it.
+
+Linux spinlock: On a single-processor kernel, ordinary spinlocks can reduce to disabling preemption instead of spinning. Spinning would be pointless because the only CPU would be occupied waiting, preventing the lock holder from running and releasing the lock.</pre>
+</div>
+<h2>Problem 6Requirements, relocation, loading and linking</h2>
+<div class="a"><p class="q">(a) Memory management has five requirements: relocation, protection, sharing, logical organization and physical organization. Name the requirement each situation illustrates.</p>
+<table><tr><th></th><th>Requirement</th></tr>
+<tr><th>A process swapped out at noon comes back at 12:05 into a different region of memory</th><td>Relocation</td></tr>
+<tr><th>A bug in a game computes an address that falls inside the web browser&#39;s memory, and the access must be stopped</th><td>Protection</td></tr>
+<tr><th>Forty users run the same text editor, and one copy of its code should serve all of them</th><td>Sharing</td></tr>
+<tr><th>A library is written and compiled as its own module, and the system should treat it as a unit with its own access rights</th><td>Logical organization</td></tr>
+<tr><th>A program needs more memory than is free, and its programmer should not have to decide which parts are loaded when</th><td>Physical organization</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) The process first runs at base 0x1C000. Later it is swapped out and brought back in at base 0x63000. Give the physical address of each relative address in both places (write trap for an access the hardware refuses). Then, in the box under the table, say what the OS changed when the process came back at a new place, and why the bounds check must be done by the processor rather than by OS software.</p>
+<table><tr><th></th><th>Running at base 0x1C000</th><th>Running at base 0x63000</th></tr>
+<tr><th>0x0000</th><td>0x1C000</td><td>0x63000</td></tr>
+<tr><th>0x2A7C</th><td>0x1EA7C</td><td>Ox65A7C</td></tr>
+<tr><th>0x4FFF</th><td>0x20FFF</td><td>0x67FFF</td></tr>
+<tr><th>0x5000</th><td>trap</td><td>trap</td></tr>
+<tr><th>0x13F0</th><td>0x1D3F0</td><td>0x643F0</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) The process first runs at base 0x1C000. Later it is swapped out and brought back in at base 0x63000. Give the physical address of each relative address in both places (write trap for an access the hardware refuses). Then, in the box under the table, say what the OS changed when the process came back at a new place, and why the bounds check must be done by the processor rather than by OS software.</p>
+<pre>When the process was swapped back into memory, the OS updated the base register from 0x1C000 to 0x63000 and the bounds register from 0x21000 to 0x68000. The processor must perform the bounds check on every memory access to prevent a process from accessing memory outside its allocated region. Hardware checking provides immediate protection without requiring the OS to intercept every memory reference.</pre>
+</div>
+<div class="a"><p class="q">(c) The module is loaded at 0x8000. What does each of the four words hold in memory with relocatable loading, and what would it hold with dynamic run-time loading at the same place? Then, in the box under the table: the process is later swapped out and must come back at 0xA000. What goes wrong with relocatable loading, and how does dynamic run-time loading avoid it?</p>
+<table><tr><th></th><th>Relocatable loading at 0x8000</th><th>Dynamic run-time loading at 0x8000</th></tr>
+<tr><th>0x0010</th><td>0x8400</td><td>0x0400</td></tr>
+<tr><th>0x0024</th><td>0x8388</td><td>0x0388</td></tr>
+<tr><th>0x0030</th><td>0x8010</td><td>0x0010</td></tr>
+<tr><th>0x0040</th><td>0x0400</td><td>0x0400</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(c) The module is loaded at 0x8000. What does each of the four words hold in memory with relocatable loading, and what would it hold with dynamic run-time loading at the same place? Then, in the box under the table: the process is later swapped out and must come back at 0xA000. What goes wrong with relocatable loading, and how does dynamic run-time loading avoid it?</p>
+<pre>With relocatable loading, the address-containing words were adjusted for base 0x8000. If the process returns at 0xA000, those addresses would be incorrect unless relocation is performed again.
+
+With dynamic run-time loading, the stored relative addresses remain unchanged. The OS updates the base register to 0xA000, and the processor translates addresses during execution, allowing the process to run at its new location without modifying its stored addresses.</pre>
+</div>
+<div class="a"><p class="q">(d) A linker joins three object modules, in the order A, B, C, into one load module that starts at relative address 0. A is 0x0600 bytes long, B is 0x0A00 and C is 0x0400. Give each address in the load module.</p>
+<table><tr><th></th><th>Address (hex)</th></tr>
+<tr><th>Where B starts</th><td>0x0600</td></tr>
+<tr><th>Where C starts</th><td>0x1000</td></tr>
+<tr><th>Length of the whole load module</th><td>0x1400</td></tr>
+<tr><th>A call in A to the start of C becomes a jump to</th><td>0x1000</td></tr>
+<tr><th>A reference in B to B&#39;s own relative address 0x0144 becomes</th><td>0x0744</td></tr>
+<tr><th>A call in C to the routine at B&#39;s relative address 0x0300 becomes</th><td>0x0900</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(e) Choose static linking, load-time dynamic linking or run-time dynamic linking for each need.</p>
+<table><tr><th></th><th>Kind of linking</th><th>Why</th></tr>
+<tr><th>A spelling checker that is used only when the user clicks Check should take no memory otherwise</th><td>Run-time dynamic linking</td><td>The spelling checker is loaded only when the user clicks Check, avoiding unnecessary memory use.</td></tr>
+<tr><th>A security fix to a shared system library should reach every program that uses it without relinking those programs</th><td>Load-time dynamic linking</td><td>Programs load the shared system library when starting, so they can use an updated version without being relinked.</td></tr>
+<tr><th>A rescue tool must run on a damaged machine where no libraries can be found at all</th><td>Static linking</td><td>All required library code is included in the executable, allowing the rescue tool to run even when external libraries are unavailable.</td></tr>
+</table>
+</div>
+<h2>Problem 7Partitioning and the buddy system</h2>
+<div class="a"><p class="q">(a) Fill in where each job goes under each scheme. Below the table, give each scheme&#39;s total internal fragmentation for the jobs that are loaded, the partitions it leaves idle, and the trade-off between the two schemes.</p>
+<table><tr><th></th><th>Scheme 1: partition, or waits</th><th>Scheme 2: partition</th><th>Scheme 2: MB wasted inside</th></tr>
+<tr><th>J1 (5 MB)</th><td>6 MB</td><td>6 MB</td><td>1 MB</td></tr>
+<tr><th>J2 (6 MB)</th><td>Waits for 6 MB</td><td>8 MB</td><td>2 MB</td></tr>
+<tr><th>J3 (3 MB)</th><td>4 MB</td><td>4 MB</td><td>1 MB</td></tr>
+<tr><th>J4 (5 MB)</th><td>Waits for 6 MB</td><td>12 MB</td><td>7 MB</td></tr>
+<tr><th>J5 (10 MB)</th><td>12 MB</td><td>26 MB</td><td>16 MB</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(a) Fill in where each job goes under each scheme. Below the table, give each scheme&#39;s total internal fragmentation for the jobs that are loaded, the partitions it leaves idle, and the trade-off between the two schemes.</p>
+<pre>Scheme 1: Total internal fragmentation = (6 − 5) + (4 − 3) + (12 − 10) = 4 MB. The 8 MB and 26 MB partitions remain idle. J2 and J4 wait for the occupied 6 MB partition.
+
+Scheme 2: Total internal fragmentation = 1 + 2 + 1 + 7 + 16 = 27 MB. All five partitions are occupied, so none remain idle.
+
+Trade-off: Scheme 1 wastes less space inside allocated partitions but leaves larger partitions unused while jobs wait. Scheme 2 loads more jobs and uses all partitions, but creates more internal fragmentation.</pre>
+</div>
+<div class="a"><p class="q">(b) For each request and each policy, give the address where the block is placed, or write fails.</p>
+<table><tr><th></th><th>First-fit</th><th>Best-fit</th><th>Next-fit</th><th>Worst-fit</th></tr>
+<tr><th>R1 = 32</th><td>56</td><td>163</td><td>56</td><td>245</td></tr>
+<tr><th>R2 = 20</th><td>163</td><td>205</td><td>163</td><td>56</td></tr>
+<tr><th>R3 = 16</th><td>99</td><td>99</td><td>205</td><td>163</td></tr>
+<tr><th>R4 = 12</th><td>135</td><td>135</td><td>245</td><td>205</td></tr>
+<tr><th>R5 = 34</th><td>245</td><td>56</td><td>fails</td><td>fails</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(c) For each policy that failed a request: how much memory was free in total at the moment it failed, in how many holes, and what was the largest hole? Name the problem that made it fail. What did best-fit leave behind that the chapter warns about, even though it succeeded here?</p>
+<pre>Next-fit: At failure, 75 KB was free across 6 holes (3, 16, 16, 12, 4, and 24 KB). The largest hole was 24 KB.
+
+Worst-fit: At failure, 75 KB was free across 6 holes (15, 16, 16, 16, 8, and 4 KB). The largest hole was 16 KB.
+
+Both failed because of external fragmentation. Although 75 KB was free, no single contiguous hole could hold the 34 KB request.
+
+Best-fit: Even though it succeeded, it left small fragments of 1 KB and 4 KB. The chapter warns that best-fit often creates tiny holes that are difficult to use for future allocations.</pre>
+</div>
+<div class="a"><p class="q">(d) Trace these steps. After each one, write memory from address 0 upward as a list of blocks, for example A 128, free 128, free 256, free 512, and give the total internal fragmentation (KB wasted inside the blocks that are in use).</p>
+<table><tr><th></th><th>Memory from address 0 upward</th><th>Internal fragmentation (KB)</th></tr>
+<tr><th>1. A requests 100 KB</th><td>A 128, free 128, free 256, free 512</td><td>28 KB</td></tr>
+<tr><th>2. B requests 240 KB</th><td>A 128, free 128, B 256, free 512</td><td>44 KB</td></tr>
+<tr><th>3. C requests 64 KB</th><td>A 128, C 64, free 64, B 256, free 512</td><td>44 KB</td></tr>
+<tr><th>4. D requests 30 KB</th><td>A 128, C 64, D 32, free 32, B 256, free 512</td><td>46 KB</td></tr>
+<tr><th>5. B is released</th><td>A 128, C 64, D 32, free 32, free 256, free 512</td><td>30 KB</td></tr>
+<tr><th>6. E requests 200 KB</th><td>A 128, C 64, D 32, free 32, E 256, free 512</td><td>86 KB</td></tr>
+<tr><th>7. C is released</th><td>A 128, free 64, D 32, free 32, E 256, free 512</td><td>86 KB</td></tr>
+<tr><th>8. A is released</th><td>free 128, free 64, D 32, free 32, E 256, free 512</td><td>58 KB</td></tr>
+<tr><th>9. F requests 500 KB</th><td>free 128, free 64, D 32, free 32, E 256, F 512</td><td>70 KB</td></tr>
+<tr><th>10. D is released</th><td>free 256, E 256, F 512</td><td>68 KB</td></tr>
+<tr><th>11. E is released</th><td>free 512, F 512</td><td>12 KB</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(e) In a buddy system, the buddy of a block of size s at address x is at x XOR s, where XOR flips exactly the one bit of x that has the value s. Addresses are in hex bytes (64 KB = 0x10000). Give each block&#39;s buddy, or write impossible if no block of that size can start at that address.</p>
+<table><tr><th></th><th>Buddy&#39;s address</th></tr>
+<tr><th>64 KB block at 0x40000</th><td>0x50000</td></tr>
+<tr><th>128 KB block at 0x60000</th><td>0x40000</td></tr>
+<tr><th>32 KB block at 0xD8000</th><td>0xD0000</td></tr>
+<tr><th>256 KB block at 0xC0000</th><td>0x80000</td></tr>
+<tr><th>32 KB block at 0x30000</th><td>0x38000</td></tr>
+<tr><th>128 KB block at 0x30000</th><td>impossible -- 0x30000 is not aligned to a 128 KB (0x20000-byte) block boundary.</td></tr>
+</table>
+</div>
+<h2>Problem 8Paging and segmentation</h2>
+<div class="a"><p class="q">(a) Fill in the table for two systems.</p>
+<table><tr><th></th><th>16-bit logical addresses, 2 KB pages, 256 KB of physical memory</th><th>32-bit logical addresses, 4 KB pages, 1 GB of physical memory</th></tr>
+<tr><th>Offset bits</th><td>11</td><td>12</td></tr>
+<tr><th>Page-number bits</th><td>5</td><td>20</td></tr>
+<tr><th>Most pages a process can have</th><td>32</td><td>1,048,576</td></tr>
+<tr><th>Frame-number bits</th><td>7</td><td>18</td></tr>
+<tr><th>Frames in physical memory</th><td>128</td><td>262,144</td></tr>
+<tr><th>Size of a page table that maps every possible page, at 4 bytes per entry</th><td>128 bytes</td><td>4,194,304 bytes (4 MB)</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(b) Translate each logical address.</p>
+<table><tr><th></th><th>Page</th><th>Offset (hex)</th><th>Frame</th><th>Physical address (hex), or invalid</th></tr>
+<tr><th>0x0A3F</th><td>1</td><td>0x023F</td><td>5</td><td>Physical 0x2A3F</td></tr>
+<tr><th>0x1C05</th><td>3</td><td>0x0405</td><td>40</td><td>Physical 0x14405</td></tr>
+<tr><th>0x07FF</th><td>0</td><td>0x07FF</td><td>21</td><td>Physical 0xAFFF</td></tr>
+<tr><th>0x2000</th><td>4</td><td>0x0000</td><td>97</td><td>Physical 0x30800</td></tr>
+<tr><th>0x3612</th><td>6</td><td>0x0612</td><td>--</td><td>invalid</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(c) Translate each logical address. Write trap where the hardware must refuse the access.</p>
+<table><tr><th></th><th>Segment</th><th>Offset (hex)</th><th>Physical address (hex), or trap</th></tr>
+<tr><th>0x05FF</th><td>0</td><td>0x5FF</td><td>Physical 0x4FFF</td></tr>
+<tr><th>0x1D3C</th><td>1</td><td>0xD3C</td><td>Physical 0x1F3C</td></tr>
+<tr><th>0x2310</th><td>2</td><td>0x310</td><td>trap (offset exceeds legnth 0x300)</td></tr>
+<tr><th>0x3880</th><td>3</td><td>0x880</td><td>Physical 0x6880</td></tr>
+<tr><th>0x0600</th><td>0</td><td>0x600</td><td>trap (offset equals segment length)</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(d) A process is 9,300 bytes long. For each page size, how many pages does it need, how many bytes of its last page are wasted, and how many page table entries does it use?</p>
+<table><tr><th></th><th>Pages needed</th><th>Bytes wasted</th><th>Page table entries</th></tr>
+<tr><th>512 bytes</th><td>19</td><td>428</td><td>19</td></tr>
+<tr><th>2 KB</th><td>5</td><td>940</td><td>5</td></tr>
+<tr><th>4 KB</th><td>3</td><td>2,988</td><td>3</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">(e) Using your answers to (d): about how much is wasted per process on average with pages of size p, and why do designers not simply choose very small pages? Then compare simple paging with simple segmentation: which one the programmer can see, which kind of fragmentation each suffers, and which makes it easier to protect and share a logical part of a program such as a library.</p>
+<pre>With page size p, the average wasted space per process is approximately p/2 bytes because the last page is usually partially filled. Designers do not simply choose very small pages because smaller pages require more page table entries, increasing memory overhead and address translation management.
+
+Simple paging is generally invisible to the programmer and suffers from internal fragmentation because pages are fixed in size.
+
+Simple segmentation is visible to the programmer as logical program segments and suffers from external fragmentation because segments have variable sizes.
+
+Segmentation makes it easier to protect and share logical parts of a program, such as a library, because each segment can have its own access permissions and be shared between processes.</pre>
+</div>
+<h2>B3Write the missing pieces, run, and explain</h2>
+<div class="a"><p class="q">B-a Paste the complete output of python allocation.py.</p>
+<pre>
+Experiment 1: two threads take two locks in opposite orders
+  T1 holds the lock of account 0 and waits for the lock of account 1
+  T2 holds the lock of account 1 and waits for the lock of account 0
+  deadlock detected: T1 -&gt; T2 -&gt; T1 (each thread waits for a lock the next one holds)
+  recovery: T2 is chosen as the victim (it moves less money, so it is the cheaper one to redo)
+  T1: moved 100 from account 0 to account 1
+  T2: rolled back: released account 1, moved nothing
+  balances [400, 600, 500], total 1500
+
+  Prevention: every thread locks the lower-numbered account first (three threads in a ring)
+  lock-order check: PASS (a transfer from 2 to 0 locks account 0 first, then account 2)
+  60,000 transfers finished, balances [500, 500, 500], total 1500 (started at 1500)
+
+Experiment 2: the banker&#39;s algorithm (resource types A, B, C)
+  total [9, 5, 6], free [3, 1, 4]
+  starting state: safe, order P2 P1 P3 P4
+  P3 asks for [2, 0, 2]: granted; a safe order is P2 P3 P1 P4
+  P1 asks for [0, 2, 1]: error: more than its declared claim
+  P1 asks for [0, 1, 1]: refused: the state would be unsafe (the process waits)
+  P4 asks for [2, 0, 2]: must wait: only [1, 1, 2] free
+  P3 finishes and releases [2, 1, 2]
+  P1 asks for [0, 1, 1]: granted; a safe order is P2 P1 P3 P4
+  final free [3, 1, 3]
+
+Experiment 3: placement in 4096 KB, 3000 requests of 10-200 KB (seed 2026)
+  self-check first-fit 55 KB with the pointer at 150 -&gt; hole at 0 (expected 0)
+  self-check best-fit  55 KB with the pointer at 150 -&gt; hole at 800 (expected 800)
+  self-check next-fit  55 KB with the pointer at 150 -&gt; hole at 200 (expected 200)
+  self-check worst-fit 55 KB with the pointer at 150 -&gt; hole at 400 (expected 400)
+  policy     failed  of them fragmented  avg holes  avg hole KB  avg largest KB  holes examined
+  first-fit      85                  85       13.1        108.1           429.3            6.95
+  best-fit       64                  64       13.0        105.2           454.5           13.08
+  next-fit       98                  98       11.8        120.3           330.4            2.54
+  worst-fit     185                 185       11.9        130.9           228.2           11.89
+</pre>
+</div>
+<div class="a"><p class="q">B-b Experiment 1, the deadlock. In your own words, say what each thread holds and what each waits for at the moment the detector runs. Then point to the line or lines of naive_transfer where each of the four conditions shows up: mutual exclusion, hold and wait, no preemption and circular wait. Why does the program use the barrier start_line, and what would you expect to see if that line were removed?</p>
+<pre>In Experiment 1, T1 holds the lock for account 0 and waits for account 1, while T2 holds the lock for account 1 and waits for account 0. This creates a deadlock because neither thread can continue.
+
+All four deadlock conditions appear in `naive_transfer()`. Mutual exclusion occurs when `with LOCKS[src]` allows only one thread to hold each lock. Hold and wait occurs when a thread holds its source lock while attempting to acquire `LOCKS[dst]`. No preemption occurs because another thread cannot forcibly take away a held lock; the owner must release it. Circular wait occurs when T1 waits for T2&#39;s lock while T2 waits for T1&#39;s lock.
+
+The `start_line.wait()` barrier ensures both threads acquire their first locks before attempting to acquire their second locks, making the deadlock occur consistently. Without the barrier, one thread might complete its transfer before the other acquires its first lock, so deadlock would not be guaranteed.</pre>
+</div>
+<div class="a"><p class="q">B-c Experiment 1, recovery and prevention. Which recovery method from Problem 3 does the program use, how does it choose the victim, and what did the recovery cost? Then explain why the three threads of the ring cannot deadlock with ordered_transfer, even though their payments go around a ring. Which condition does the lock order rule out, and what does it cost a programmer? Why is checking that the total is still 1500 a useful test?</p>
+<pre>The program uses victim selection and rollback to recover from deadlock. It selects T2 because its $50 transfer is smaller than T1&#39;s $100 transfer, making it cheaper to redo. T2 releases its lock without transferring any money, allowing T1 to complete its transfer. The recovery cost is the unfinished transfer, which would need to be attempted again.
+
+The three-thread ring avoids deadlock because `ordered_transfer()` always acquires locks in ascending account-number order, regardless of the direction of the payment. This eliminates the circular wait condition, even though the transfers themselves form a ring. The cost to programmers is having to define and consistently follow a global lock ordering rule.
+
+Checking that the total balance remains $1,500 is useful because transfers should only move money between accounts, not create or lose money. It helps verify that the concurrent operations preserve the total amount of money.</pre>
+</div>
+<div class="a"><p class="q">B-d Experiment 2. The first time P1 asks for [0, 1, 1] the banker refuses. Show by hand why: give the free vector the tentative grant would leave and every process&#39;s remaining need, and show that no process can finish. Why is the same request granted later? Finally, explain the difference between the three outcomes the program prints as error, must wait and refused.</p>
+<pre>After P3&#39;s request was granted, the available resources were [1, 1, 2]. When P1 requested [0, 1, 1], a tentative grant would leave [1, 0, 1] available.
+
+Using Need = Claim − Allocation, the remaining needs after the tentative grant are:
+
+| Process | Remaining Need |
+| P1 | [6, 0, 0] |
+| P2 | [0, 0, 2] |
+| P3 | [0, 2, 3] |
+| P4 | [3, 1, 3] |
+
+None of these processes can finish with only [1, 0, 1] available, so no process can release additional resources. The resulting state would be unsafe, which is why the banker refuses the request.
+
+Later, P3 finishes and releases [2, 1, 2], making additional resources available. The same request from P1 can then be granted safely, with the safe sequence P2 → P1 → P3 → P4.
+
+The three outcomes have different meanings. Error means a request exceeds the process&#39;s declared maximum claim. Must wait means there are not enough resources currently available. Refused means enough resources are available, but granting the request would put the system into an unsafe state.</pre>
+</div>
+<div class="a"><p class="q">B-e Experiment 3. Copy your results into the table.</p>
+<table><tr><th></th><th>Failed</th><th>Of them fragmented</th><th>Avg holes</th><th>Avg hole KB</th><th>Avg largest KB</th><th>Holes examined</th></tr>
+<tr><th>First-fit</th><td>85</td><td>85</td><td>13.1</td><td>108.1</td><td>429.3</td><td>6.95</td></tr>
+<tr><th>Best-fit</th><td>64</td><td>64</td><td>13.0</td><td>105.2</td><td>454.5</td><td>13.08</td></tr>
+<tr><th>Next-fit</th><td>98</td><td>9</td><td>11.8</td><td>120.3</td><td>330.4</td><td>2.54</td></tr>
+<tr><th>Worst-fit</th><td>185</td><td>185</td><td>11.9</td><td>130.9</td><td>228.2</td><td>11.89</td></tr>
+</table>
+</div>
+<div class="a"><p class="q">B-f Interpret the table. Which policy failed the fewest requests and which the most? What does the &quot;of them fragmented&quot; column tell you about why requests failed? Why do best-fit and worst-fit examine about as many holes as there are on average, and why does next-fit examine the fewest? The chapter makes three claims: first-fit is usually the simplest, fastest and often the best; next-fit tends to break up the large free block at the top of memory; best-fit is usually the worst because it leaves fragments too small to use. For each claim, say whether your results support it, and point to the column that shows it.</p>
+<pre>Best-fit had the fewest failed requests (64), while worst-fit had the most (185). The &quot;of them fragmented&quot; column shows that every failed request was caused by external fragmentation, meaning enough total free memory existed but was divided into holes too small to satisfy the request.
+
+Best-fit and worst-fit examine approximately every available hole because they must find the smallest or largest suitable hole. Next-fit examines the fewest holes (2.54 on average) because it starts near the previous allocation position and stops at the first suitable hole.
+
+The results partially support the claim that first-fit is usually simplest, fastest, and often best. First-fit examined only 6.95 holes on average, fewer than best-fit and worst-fit, but next-fit examined even fewer (2.54), and best-fit had fewer failures.
+
+The claim that next-fit tends to break up the large free block at the top of memory is consistent with the results because next-fit&#39;s average largest hole was 330.4 KB compared with first-fit&#39;s 429.3 KB. However, the table does not show where those holes were located, so it cannot directly prove that the top block was broken up.
+
+The results do not support the claim that best-fit is usually the worst. Best-fit had the fewest failures (64), compared with first-fit&#39;s 85, next-fit&#39;s 98, and worst-fit&#39;s 185. Although best-fit had the smallest average hole size (105.2 KB), it performed best at satisfying allocation requests in this workload.</pre>
+</div>
+<div class="a"><p class="q">B-g Your own experiment. Change one thing in allocation.py to test an idea of your own, and mark the changed line with a comment that starts # B-g. Some starting points: change SEED to see whether the ranking of the policies survives a different workload; change SIZES or LIFETIMES to make memory more or less crowded; make MEMORY_KB smaller; remove the barrier line start_line.wait() and run the program several times. Before running it, write down the change, what you predict will happen and why (use the chapter&#39;s ideas and your earlier results). Then run it, paste the relevant lines of output, and say whether your prediction held and what explains any surprise.</p>
+<pre>Change: I reduced `MEMORY_KB` from 4096 KB to 2048 KB while keeping the same number of requests, request sizes, lifetimes, and random seed. I marked the change with a `# B-g` comment in the code.
+
+Prediction: I predicted that all four algorithms would experience more failed requests because less memory would be available for the same workload. I also expected best-fit to remain one of the better-performing algorithms in terms of allocation failures and next-fit to examine the fewest holes on average.
+
+Results: After running the modified program, first-fit had 965 failures compared with 85 originally, best-fit had 942 compared with 64, next-fit had 970 compared with 98, and worst-fit had 1,014 compared with 185. Best-fit still had the fewest failures, while next-fit continued to examine the fewest holes per request, averaging 4.76.
+
+Conclusion: My prediction was supported by the results. Reducing the available memory significantly increased allocation failures for every algorithm. The results also showed that some requests failed because there was not enough total free memory, rather than only because of external fragmentation. This demonstrates how reducing memory capacity can increase allocation failures even when the workload stays the same.</pre>
+</div>
+<script type="application/json" id="answer-data">{"hw":"os-hw3","answers":{"__name":"Connor Sheldon","p1a":[["Reusable"],["Consumable"],["Reusable"],["Consumable"],["Reusable"],["Reusable"],["Consumable"],["Consumable"]],"p1b":[["P1 → R2 → P2 → R1 → P1","No","P3 can finish and release R1, allowing P2 to finish and release R2, followed by P1. Order: P3 → P2 → P1."],["P1 → R2 → P2 → R1 → P1; P3 → R3 → P4 → R2 → P2 → R1 → P3","Yes: P1, P2, P3, P4","All resource units are allocated, and every process is waiting for another blocked process. No process can finish or release its resources."]],"p1c":[["Hold and wait","Resources may sit unused, and processes must know their needs in advance."],["Circular wait","Restricts the order in which programs can acquire resources."],["No preemption","Work may need to be repeated, and starvation is possible."],["Mutual exclusion","Only works for resources that can safely be shared, such as read-only files."],["No preemption","Swapping creates overhead and delays lower-priority processes."],["None","Requires maximum claims in advance and adds checking overhead."]],"p1d":"When both processes start, they immediately call Receive and block while waiting for a message from the other process. Since neither process can reach its Send instruction, neither message is ever created. This is a deadlock because both processes are waiting for an event that only the other blocked process can cause. The resources involved are consumable resources, specifically messages.\n\nIncreasing the mailbox capacity would not solve the problem because the issue is not a lack of storage space. Neither process sends a message, so there is nothing to store.\n\nTo fix the deadlock, Process A can send its message before attempting to receive:\n\nProcess A:\n```\nSend(to B, request);\nReceive(from B, reply);\n```\n\nProcess B:\n```\nReceive(from A, request);\nSend(to A, reply);\n```\n\nWith this change, Process A sends the request, Process B receives it and sends a reply, and Process A receives the reply. Both processes can now complete without deadlocking.","p2a":[["0","3","4"],["0","4","1"],["1","2","1"],["0","1","1"],["3","1","1"],["3","2","1"]],"p2b":[["P3","(4, 4, 2)"],["P2","(6, 5, 2)"],["P4","(7, 6, 3)"],["P5","(8, 6, 6)"],["P1","(10, 7, 9) "]],"p2c":[["Grant","Request ≤ Need and Request ≤ Available. After temporary allocation, Available = (2, 2, 0). Safe sequence: P3 → P2 → P4 → P5 → P1."],["Refuse (wait)","First two checks pass, but temporary allocation leaves Available = (3, 2, 0). No process can finish, so the state is unsafe."],["Error","Request exceeds P4's remaining need (0, 1, 1), because it requests 1 unit of A when its remaining need for A is 0."]],"p2d":"No, process initiation denial would not allow all five processes to run simultaneously.\n\nThe combined maximum claims are:\n\n- Resource A: 2 + 2 + 2 + 1 + 4 = 11\n- Resource B: 4 + 5 + 4 + 2 + 1 = 16\n- Resource C: 7 + 1 + 2 + 2 + 4 = 16\n\nThe total claim vector is (11, 16, 16), which exceeds the system's resource vector of (10, 7, 9).\n\nThis shows that process initiation denial is more restrictive than the banker's algorithm. Initiation denial requires enough resources to satisfy all maximum claims simultaneously, while the banker's algorithm allows processes to share resources over time as long as the system remains in a safe state. In Problem 2(b), the banker's algorithm found the safe sequence P3 → P2 → P4 → P5 → P1, even though the combined maximum claims exceed the system's total resources.","p2e":"No, an unsafe state does not necessarily mean the processes are deadlocked. An unsafe state means the operating system cannot guarantee that every process will finish if each process requests its maximum remaining resources. A deadlocked state means processes are actually blocked and cannot proceed because they are waiting for resources that cannot become available.\n\nFor example, granting P2's request in part (c) would leave the available vector at (3, 2, 0), which is unsafe. However, if P2 could finish without requesting additional resources, it would release its allocation (2, 1, 1), increasing the available vector to (5, 3, 1). The remaining processes could then finish in the order P4 → P3 → P5 → P1.\n\nTherefore, an unsafe state creates the possibility of deadlock, but deadlock is not guaranteed.","p3a":"Available vector: (0, 0, 0, 0)\n\nStep 1 marks: P5, because it holds no resources.\n\nW starts as: (0, 0, 0, 0)\n\nThen: P4 can finish because its request is (0, 0, 0, 0). It releases (0, 0, 1, 0), updating W to (0, 0, 1, 0). No other unmarked process can finish, so the algorithm stops.\n\nDeadlocked: P1, P2, and P3.","p3b":"P5 is blocked because it is waiting for a resource, but it is not deadlocked because it holds no resources. Since P5 cannot prevent other processes from obtaining resources, the deadlock detection algorithm marks it immediately. P1, P2, and P3 are deadlocked because they hold resources while waiting for resources that cannot become available.","p3c":"Abort order: P1 first (3 seconds), then P3 (5 seconds). After aborting P1, P2 and P3 remain deadlocked. Aborting P3 releases R4, allowing P2 to finish and resolve the deadlock.\n\nTotal processor time lost: 3 + 5 = 8 seconds.\n\nFewest processes to abort: P2 alone. Releasing P2's resources allows the other processes to finish, but this wastes 40 seconds of processor time.\n\nMy choice: I would abort P1 and P3 because this loses only 8 seconds of processor time instead of 40 seconds, even though two processes must be aborted instead of one.","p3d":[["3","Prevention: preemption through swapping","Memory can be reclaimed by swapping a process out."],["4","Prevention: resource ordering","These resources are used briefly and frequently, so a fixed order is efficient."],["1","Prevention: allocate all at once","The required space is known in advance."],["2","Avoidance: banker's algorithm","Maximum resource needs can be declared in advance."]],"p3e":"Advantage: Running detection after every request identifies deadlocks immediately, allowing faster recovery.\n\nDisadvantage: It increases CPU overhead because the detection algorithm runs after every resource request.\n\nDifference: Deadlock detection uses the request matrix (Q) and allocation matrix (A) to identify existing deadlocks. The banker's safety test uses the claim matrix (C) and allocation matrix (A) to calculate remaining needs (C − A) and determine whether a state is safe before granting a request.\n\nWhy detection is optimistic: It assumes processes will usually complete successfully, allowing resource requests without checking future safety and detecting and recovering from deadlocks only if they occur.","p4a":"Schedule: Philosophers 0, 1, 2, 3, and 4 each pick up their left forks (forks 0, 1, 2, 3, and 4). They then each attempt to pick up their right forks, but all are already held.\n\nHolds and waits:\n- P0 holds fork 0, waits for fork 1.\n- P1 holds fork 1, waits for fork 2.\n- P2 holds fork 2, waits for fork 3.\n- P3 holds fork 3, waits for fork 4.\n- P4 holds fork 4, waits for fork 0.\n\nFour deadlock conditions:\n- Mutual exclusion: Only one philosopher can hold each fork.\n- Hold and wait: Each philosopher holds one fork while waiting for another.\n- No preemption: Forks cannot be forcibly taken away.\n- Circular wait: P0 → P1 → P2 → P3 → P4 → P0.\n\nAll five philosophers are deadlocked because none can obtain their second fork or finish eating.","p4b":"Why room = 4 works: Only four philosophers can attempt to pick up forks simultaneously, leaving at least one fork free. This allows a philosopher to obtain both forks, eat, and release them, preventing deadlock.\n\nIf room = 5: All five philosophers could pick up their left forks simultaneously and wait for their right forks, causing circular wait and deadlock.\n\nLargest safe starting value: 4.","p4c":"By having philosopher 4 pick up fork 0 before fork 4, every philosopher now acquires forks in increasing numerical order. This prevents a circular chain of processes waiting for lower numbered resources, so no circular wait can form. The deadlock condition eliminated is circular wait.","p4d":"Minimum forks: 6. With five forks, each philosopher could hold one and wait for another, causing deadlock. With six forks, at least one philosopher can obtain two forks, finish eating, and release them.\n\nGeneral formula: R = n(k − 1) + 1, where n is the number of processes and k is the number of resource units each process needs.\n\nEight processes needing three tape drives: R = 8(3 − 1) + 1 = 17 tape drives.","p4e":"Why deadlock is impossible: Requiring philosophers to acquire both forks simultaneously eliminates the hold-and-wait condition. A philosopher either gets both forks or waits without holding any.\n\nStarvation example: Philosophers 1 and 3 repeatedly acquire their forks, eat, and release them. Each time they release their forks, they acquire them again before philosopher 2 can obtain forks 2 and 3. Philosopher 2 could therefore wait forever.\n\nName and difference: This is called starvation. Deadlock occurs when processes cannot make progress because they are waiting on one another, while starvation occurs when one process waits indefinitely even though other processes continue making progress.","p5a":[["Unnamed price","Connects the output of one related process directly to the input of another, as in ls \\| wc -l."],["Named pipe (FIFO)","Provides a filesystem name so unrelated processes can find and use the same byte stream."],["Message queue","Supports separate messages with priorities, allowing urgent log records to be received first."],["Shared memory","Allows processes to access large video frames directly without repeatedly copying the data."],["Atomic operations","Safely increments a shared counter across CPUs without the overhead of a larger lock."],["Spinlock","Protects a short critical section in kernel code, including interrupt-related access, without sleeping."],["Read-copy-update (RCU)","Allows extremely frequent reads with minimal overhead while supporting occasional updates."],["Kernel semaphore","Supports interruptible sleeping while waiting for a device, unlike a spinlock that busy-waits."],["Windows dispatcher objects and wait functions","Allows the main thread to wait until all four worker-thread objects are signaled as terminated."],["Windows SRW lock","Allows multiple threads to read the cache simultaneously while giving updates exclusive access."],["Solaris condition variable","Allows a thread to sleep until another thread signals that the shared queue may contain data."],["Android Binder","Provides interprocess method calls between Android applications and services."]],"p5b":"Standard SIGUSR1: The handler runs once because standard UNIX signals are not queued individually. Multiple pending instances of the same signal are combined into one.\n\nLinux real-time signal: The handler runs three times because real-time signals are queued separately. Each signal preserves its associated value, so the handler receives 1, 2, and 3 in order.","p5c":[["Continues","1(3 - 2 = 1)","Nobody wakes."],["Suspended","1 (unchanged)","Nobody wakes. B waits for the value to reach 0."],["Suspended","1 (unchanged)","Nobody wakes. C waits until at least 2 units are available."],["Continues","2(1 + 1 = 2)","C wakes and subtracts 3, making the value 0. B then wakes and completes its zero wait operation."]],"p5d":"Solaris condition variable: A `while` loop is necessary because waking up does not guarantee the condition is still true. Another thread may have changed it before the waiting thread resumes, so the condition must be checked again. An `if` statement would not recheck it.\n\nLinux spinlock: On a single-processor kernel, ordinary spinlocks can reduce to disabling preemption instead of spinning. Spinning would be pointless because the only CPU would be occupied waiting, preventing the lock holder from running and releasing the lock.","p6a":[["Relocation"],["Protection"],["Sharing"],["Logical organization"],["Physical organization"]],"p6b":[["0x1C000","0x63000"],["0x1EA7C","Ox65A7C"],["0x20FFF","0x67FFF"],["trap","trap"],["0x1D3F0","0x643F0"]],"p6b-note":"When the process was swapped back into memory, the OS updated the base register from 0x1C000 to 0x63000 and the bounds register from 0x21000 to 0x68000. The processor must perform the bounds check on every memory access to prevent a process from accessing memory outside its allocated region. Hardware checking provides immediate protection without requiring the OS to intercept every memory reference.","p6c-note":"With relocatable loading, the address-containing words were adjusted for base 0x8000. If the process returns at 0xA000, those addresses would be incorrect unless relocation is performed again.\n\nWith dynamic run-time loading, the stored relative addresses remain unchanged. The OS updates the base register to 0xA000, and the processor translates addresses during execution, allowing the process to run at its new location without modifying its stored addresses.","p6c":[["0x8400","0x0400"],["0x8388","0x0388"],["0x8010","0x0010"],["0x0400","0x0400"]],"p6d":[["0x0600"],["0x1000"],["0x1400"],["0x1000"],["0x0744"],["0x0900"]],"p6e":[["Run-time dynamic linking","The spelling checker is loaded only when the user clicks Check, avoiding unnecessary memory use."],["Load-time dynamic linking","Programs load the shared system library when starting, so they can use an updated version without being relinked."],["Static linking","All required library code is included in the executable, allowing the rescue tool to run even when external libraries are unavailable."]],"p7a":[["6 MB","6 MB","1 MB"],["Waits for 6 MB","8 MB","2 MB"],["4 MB","4 MB","1 MB"],["Waits for 6 MB","12 MB","7 MB"],["12 MB","26 MB","16 MB"]],"p7a-note":"Scheme 1: Total internal fragmentation = (6 − 5) + (4 − 3) + (12 − 10) = 4 MB. The 8 MB and 26 MB partitions remain idle. J2 and J4 wait for the occupied 6 MB partition.\n\nScheme 2: Total internal fragmentation = 1 + 2 + 1 + 7 + 16 = 27 MB. All five partitions are occupied, so none remain idle.\n\nTrade-off: Scheme 1 wastes less space inside allocated partitions but leaves larger partitions unused while jobs wait. Scheme 2 loads more jobs and uses all partitions, but creates more internal fragmentation.","p7b":[["56","163","56","245"],["163","205","163","56"],["99","99","205","163"],["135","135","245","205"],["245","56","fails","fails"]],"p7c":"Next-fit: At failure, 75 KB was free across 6 holes (3, 16, 16, 12, 4, and 24 KB). The largest hole was 24 KB.\n\nWorst-fit: At failure, 75 KB was free across 6 holes (15, 16, 16, 16, 8, and 4 KB). The largest hole was 16 KB.\n\nBoth failed because of external fragmentation. Although 75 KB was free, no single contiguous hole could hold the 34 KB request.\n\nBest-fit: Even though it succeeded, it left small fragments of 1 KB and 4 KB. The chapter warns that best-fit often creates tiny holes that are difficult to use for future allocations.","p7d":[["A 128, free 128, free 256, free 512","28 KB"],["A 128, free 128, B 256, free 512","44 KB"],["A 128, C 64, free 64, B 256, free 512","44 KB"],["A 128, C 64, D 32, free 32, B 256, free 512","46 KB"],["A 128, C 64, D 32, free 32, free 256, free 512","30 KB"],["A 128, C 64, D 32, free 32, E 256, free 512","86 KB"],["A 128, free 64, D 32, free 32, E 256, free 512","86 KB"],["free 128, free 64, D 32, free 32, E 256, free 512","58 KB"],["free 128, free 64, D 32, free 32, E 256, F 512","70 KB"],["free 256, E 256, F 512","68 KB"],["free 512, F 512","12 KB"]],"p7e":[["0x50000"],["0x40000"],["0xD0000"],["0x80000"],["0x38000"],["impossible -- 0x30000 is not aligned to a 128 KB (0x20000-byte) block boundary."]],"p8a":[["11","12"],["5","20"],["32","1,048,576"],["7","18"],["128","262,144"],["128 bytes","4,194,304 bytes (4 MB)"]],"p8b":[["1","0x023F","5","Physical 0x2A3F"],["3","0x0405","40","Physical 0x14405"],["0","0x07FF","21","Physical 0xAFFF"],["4","0x0000","97","Physical 0x30800"],["6","0x0612","--","invalid"]],"p8c":[["0","0x5FF","Physical 0x4FFF"],["1","0xD3C","Physical 0x1F3C"],["2","0x310","trap (offset exceeds legnth 0x300)"],["3","0x880","Physical 0x6880"],["0","0x600","trap (offset equals segment length)"]],"p8d":[["19","428","19"],["5","940","5"],["3","2,988","3"]],"p8e":"With page size p, the average wasted space per process is approximately p/2 bytes because the last page is usually partially filled. Designers do not simply choose very small pages because smaller pages require more page table entries, increasing memory overhead and address translation management.\n\nSimple paging is generally invisible to the programmer and suffers from internal fragmentation because pages are fixed in size.\n\nSimple segmentation is visible to the programmer as logical program segments and suffers from external fragmentation because segments have variable sizes.\n\nSegmentation makes it easier to protect and share logical parts of a program, such as a library, because each segment can have its own access permissions and be shared between processes.","ba":"\nExperiment 1: two threads take two locks in opposite orders\n  T1 holds the lock of account 0 and waits for the lock of account 1\n  T2 holds the lock of account 1 and waits for the lock of account 0\n  deadlock detected: T1 -> T2 -> T1 (each thread waits for a lock the next one holds)\n  recovery: T2 is chosen as the victim (it moves less money, so it is the cheaper one to redo)\n  T1: moved 100 from account 0 to account 1\n  T2: rolled back: released account 1, moved nothing\n  balances [400, 600, 500], total 1500\n\n  Prevention: every thread locks the lower-numbered account first (three threads in a ring)\n  lock-order check: PASS (a transfer from 2 to 0 locks account 0 first, then account 2)\n  60,000 transfers finished, balances [500, 500, 500], total 1500 (started at 1500)\n\nExperiment 2: the banker's algorithm (resource types A, B, C)\n  total [9, 5, 6], free [3, 1, 4]\n  starting state: safe, order P2 P1 P3 P4\n  P3 asks for [2, 0, 2]: granted; a safe order is P2 P3 P1 P4\n  P1 asks for [0, 2, 1]: error: more than its declared claim\n  P1 asks for [0, 1, 1]: refused: the state would be unsafe (the process waits)\n  P4 asks for [2, 0, 2]: must wait: only [1, 1, 2] free\n  P3 finishes and releases [2, 1, 2]\n  P1 asks for [0, 1, 1]: granted; a safe order is P2 P1 P3 P4\n  final free [3, 1, 3]\n\nExperiment 3: placement in 4096 KB, 3000 requests of 10-200 KB (seed 2026)\n  self-check first-fit 55 KB with the pointer at 150 -> hole at 0 (expected 0)\n  self-check best-fit  55 KB with the pointer at 150 -> hole at 800 (expected 800)\n  self-check next-fit  55 KB with the pointer at 150 -> hole at 200 (expected 200)\n  self-check worst-fit 55 KB with the pointer at 150 -> hole at 400 (expected 400)\n  policy     failed  of them fragmented  avg holes  avg hole KB  avg largest KB  holes examined\n  first-fit      85                  85       13.1        108.1           429.3            6.95\n  best-fit       64                  64       13.0        105.2           454.5           13.08\n  next-fit       98                  98       11.8        120.3           330.4            2.54\n  worst-fit     185                 185       11.9        130.9           228.2           11.89\n","bb":"In Experiment 1, T1 holds the lock for account 0 and waits for account 1, while T2 holds the lock for account 1 and waits for account 0. This creates a deadlock because neither thread can continue.\n\nAll four deadlock conditions appear in `naive_transfer()`. Mutual exclusion occurs when `with LOCKS[src]` allows only one thread to hold each lock. Hold and wait occurs when a thread holds its source lock while attempting to acquire `LOCKS[dst]`. No preemption occurs because another thread cannot forcibly take away a held lock; the owner must release it. Circular wait occurs when T1 waits for T2's lock while T2 waits for T1's lock.\n\nThe `start_line.wait()` barrier ensures both threads acquire their first locks before attempting to acquire their second locks, making the deadlock occur consistently. Without the barrier, one thread might complete its transfer before the other acquires its first lock, so deadlock would not be guaranteed.","bc":"The program uses victim selection and rollback to recover from deadlock. It selects T2 because its $50 transfer is smaller than T1's $100 transfer, making it cheaper to redo. T2 releases its lock without transferring any money, allowing T1 to complete its transfer. The recovery cost is the unfinished transfer, which would need to be attempted again.\n\nThe three-thread ring avoids deadlock because `ordered_transfer()` always acquires locks in ascending account-number order, regardless of the direction of the payment. This eliminates the circular wait condition, even though the transfers themselves form a ring. The cost to programmers is having to define and consistently follow a global lock ordering rule.\n\nChecking that the total balance remains $1,500 is useful because transfers should only move money between accounts, not create or lose money. It helps verify that the concurrent operations preserve the total amount of money.","bd":"After P3's request was granted, the available resources were [1, 1, 2]. When P1 requested [0, 1, 1], a tentative grant would leave [1, 0, 1] available.\n\nUsing Need = Claim − Allocation, the remaining needs after the tentative grant are:\n\n| Process | Remaining Need |\n| P1 | [6, 0, 0] |\n| P2 | [0, 0, 2] |\n| P3 | [0, 2, 3] |\n| P4 | [3, 1, 3] |\n\nNone of these processes can finish with only [1, 0, 1] available, so no process can release additional resources. The resulting state would be unsafe, which is why the banker refuses the request.\n\nLater, P3 finishes and releases [2, 1, 2], making additional resources available. The same request from P1 can then be granted safely, with the safe sequence P2 → P1 → P3 → P4.\n\nThe three outcomes have different meanings. Error means a request exceeds the process's declared maximum claim. Must wait means there are not enough resources currently available. Refused means enough resources are available, but granting the request would put the system into an unsafe state.","be":[["85","85","13.1","108.1","429.3","6.95"],["64","64","13.0","105.2","454.5","13.08"],["98","9","11.8","120.3","330.4","2.54"],["185","185","11.9","130.9","228.2","11.89"]],"bf":"Best-fit had the fewest failed requests (64), while worst-fit had the most (185). The \"of them fragmented\" column shows that every failed request was caused by external fragmentation, meaning enough total free memory existed but was divided into holes too small to satisfy the request.\n\nBest-fit and worst-fit examine approximately every available hole because they must find the smallest or largest suitable hole. Next-fit examines the fewest holes (2.54 on average) because it starts near the previous allocation position and stops at the first suitable hole.\n\nThe results partially support the claim that first-fit is usually simplest, fastest, and often best. First-fit examined only 6.95 holes on average, fewer than best-fit and worst-fit, but next-fit examined even fewer (2.54), and best-fit had fewer failures.\n\nThe claim that next-fit tends to break up the large free block at the top of memory is consistent with the results because next-fit's average largest hole was 330.4 KB compared with first-fit's 429.3 KB. However, the table does not show where those holes were located, so it cannot directly prove that the top block was broken up.\n\nThe results do not support the claim that best-fit is usually the worst. Best-fit had the fewest failures (64), compared with first-fit's 85, next-fit's 98, and worst-fit's 185. Although best-fit had the smallest average hole size (105.2 KB), it performed best at satisfying allocation requests in this workload.","bg":"Change: I reduced `MEMORY_KB` from 4096 KB to 2048 KB while keeping the same number of requests, request sizes, lifetimes, and random seed. I marked the change with a `# B-g` comment in the code.\n\nPrediction: I predicted that all four algorithms would experience more failed requests because less memory would be available for the same workload. I also expected best-fit to remain one of the better-performing algorithms in terms of allocation failures and next-fit to examine the fewest holes on average.\n\nResults: After running the modified program, first-fit had 965 failures compared with 85 originally, best-fit had 942 compared with 64, next-fit had 970 compared with 98, and worst-fit had 1,014 compared with 185. Best-fit still had the fewest failures, while next-fit continued to examine the fewest holes per request, averaging 4.76.\n\nConclusion: My prediction was supported by the results. Reducing the available memory significantly increased allocation failures for every algorithm. The results also showed that some requests failed because there was not enough total free memory, rather than only because of external fragmentation. This demonstrates how reducing memory capacity can increase allocation failures even when the workload stays the same."}}</script>
+</body>
+</html>
